@@ -1,0 +1,489 @@
+====== Ein neues React-Projekt aufsetzen ======
+
+**Ziel**\\
+Ein ganz neues React-Projekt ohne Generatoren aufsetzen.
+
+**Stand**\\
+Juni 2019
+
+**Features**\\
+  * __Environment__: Nodejs
+  * __Package Manager__: NPM
+  * __Compiler__: Babel
+  * __Bundler__: Webpack
+  * __Client Side__: Reactjs mit React-Router und Hot-Reloading, Redux mit Prop-Types und Redux-Saga
+
+Als Vorbild für //Best-Practices// habe ich den ''NRX'' genommen.
+
+<WRAP center round important 60%>Das folgende erzeugt ein Gerüst, dem noch einiges fehlt (z.B. //secrets//, //Test-Development-Production//-Dreifaltigkeit), um ein vollständiges Produkt zu sein.
+</WRAP>
+
+
+===== (1) Dockercontainer =====
+
+Ein Dockerfile auf Basis von ''base-jsweb'' aufsetzen.
+
+<code bash Dockerfile-Beispiel>
+FROM 589401011586.dkr.ecr.eu-central-1.amazonaws.com/base-jsweb:0.0.33
+
+ARG NODE_ENV
+ENV NODE_ENV=${NODE_ENV:-development}
+a
+RUN if [ ${NODE_ENV} = "production" ]; then bash -l -c "npm run build:safe"; fi
+</code>
+
+Die auskommentierte Zeile wieder entkommentieren, sobald das Projekt aufgesetzt ist.
+===== (2) React, Redux, Webpack, Babel installieren =====
+
+Folgendes __im__ Container ausführen
+==== (3.1) Ordner anlegen und node initialisieren ====
+
+<code bash>
+mkdir -p src/{components,containers,reducers,actions,sagas,selectors,store,static}
+npm init -y
+</code>
+
+==== (3.2) React mit Redux ====
+
+<code bash>
+npm i -S react react-dom react-redux react-hot-loader react-loadable
+npm i -S react-router react-router-config connected-react-router react-router-dom
+npm i -S redux redux-actions redux-saga prop-types history immutable
+</code>
+
+==== (3.3) Babel ====
+
+<code bash>
+npm i -S core-js regenerator-runtime
+npm i -D @babel/core babel-loader @babel/preset-env @babel/preset-react @babel/runtime-corejs3
+npm i -D @babel/plugin-syntax-dynamic-import @babel/plugin-transform-runtime babel-plugin-redux-saga babel-plugin-dynamic-import-node
+</code>
+
+<code javascript babel.config.js>
+module.exports = function(api) {
+  api.cache(true)
+
+  return {
+    env: {
+      production: {
+        presets: [
+          [
+            '@babel/preset-env',
+            {
+              useBuiltIns: 'entry',
+              corejs: 3
+            }
+          ],
+          '@babel/preset-react'
+        ]
+      },
+      development: {
+        plugins: [
+          'react-hot-loader/babel'
+        ],
+      },
+      test: {
+        plugins: [
+          'dynamic-import-node'
+        ],
+      }
+    },
+    plugins: [
+      '@babel/plugin-syntax-dynamic-import',
+      '@babel/transform-runtime',
+      'babel-plugin-redux-saga'
+    ],
+    presets: [
+      '@babel/preset-env',
+      '@babel/preset-react'
+    ]
+  }
+}
+</code>
+
+==== (3.4) Webpack ====
+
+<code bash>
+npm i -D webpack webpack-cli webpack-dev-server webpack-dev-middleware html-webpack-plugin
+</code>
+
+<code javascript webpack.config.js>
+const HtmlWebPackPlugin = require('html-webpack-plugin')
+const webpack = require('webpack')
+const pack = require('./package.json')
+
+const config = {
+  mode: 'development',
+  entry: {
+    app: ['/app/src/index.js']
+  },
+  output: {
+    path: '/app/dist',
+    filename: '[name].js',
+    chunkFilename: '[name].js',
+    pathinfo: true,
+    globalObject: 'this'
+  },
+  resolve: {
+    modules: [
+      'node_modules',
+      '/app/src'
+    ]
+  },
+  module: {
+    rules: [
+      {
+        test: /\.jsx?$/,
+        include: /node_modules/,
+        exclude: /jszip/,
+        use: ['react-hot-loader/webpack'],
+      },
+      {
+        test: /\.js$/,
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              cacheDirectory: true
+            }
+          }
+        ],
+        include: [ '/app/src', '/app/test' ]
+      }
+    ]
+  },
+  devServer: {
+    contentBase: "/app/src/static",
+    historyApiFallback: true,
+    hot: true,
+    inline: true,
+    stats: 'minimal',
+    disableHostCheck: true,
+    watchOptions: {
+      aggregateTimeout: 300,
+      ignored: /node_modules/,
+      poll: 1000
+    },
+    host: '0.0.0.0',
+    port: 3000,
+  },
+  plugins: [
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+      'process.env.VERSION': JSON.stringify(pack.version)
+    }),
+    new HtmlWebPackPlugin({
+      template: '/app/src/index.ejs'
+    }),
+    new webpack.HotModuleReplacementPlugin()
+  ]
+}
+
+module.exports = config
+</code>
+
+===== (4) package.json kontrollieren =====
+
+<code javascript package.json>
+{
+  "name": "app",
+  "version": "0.0.1",
+  "description": "App",
+  "scripts": {
+    "build": "webpack --progress -p --bail",
+    "profile": "webpack --progress -p --profile --json > profile.json",
+    "start": "webpack-dev-server --mode development"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.4.5",
+    "@babel/plugin-syntax-dynamic-import": "^7.2.0",
+    "@babel/plugin-transform-runtime": "^7.4.4",
+    "@babel/preset-env": "^7.4.5",
+    "@babel/preset-react": "^7.0.0",
+    "@babel/runtime-corejs3": "^7.4.5",
+    "babel-loader": "^8.0.6",
+    "babel-plugin-dynamic-import-node": "^2.2.0",
+    "babel-plugin-redux-saga": "^1.0.2",
+    "html-webpack-plugin": "^3.2.0",
+    "prop-types": "^15.7.2",
+    "webpack": "^4.33.0",
+    "webpack-cli": "^3.3.2",
+    "webpack-dev-middleware": "^3.7.0",
+    "webpack-dev-server": "^3.7.0"
+  },
+  "dependencies": {
+    "connected-react-router": "^6.4.0",
+    "core-js": "^3.1.3",
+    "history": "^4.9.0",
+    "immutable": "^4.0.0-rc.12",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6",
+    "react-hot-loader": "^4.9.0",
+    "react-loadable": "^5.5.0",
+    "react-redux": "^7.0.3",
+    "react-router": "^5.0.1",
+    "react-router-config": "^5.0.1",
+    "react-router-dom": "^5.0.1",
+    "redux": "^4.0.1",
+    "redux-actions": "^2.6.5",
+    "redux-saga": "^1.0.2",
+    "regenerator-runtime": "^0.13.2"
+  }
+}
+</code>
+
+<WRAP center round important 80%>Damit die auskommentierte Zeile wieder läuft, noch ''npm shrinkwrap'' ausführen</WRAP>
+
+===== (5) Entry points =====
+
+<code javascript src/routes.js>
+import { createLoadable } from 'utils/loadable'
+
+const App = createLoadable(() => import(/* webpackChunkName: "App" */ 'containers/App'))
+
+export default [
+  {
+    path: '/',
+    component: App
+  }
+]
+</code>
+
+<code javascript src/utils/loadable.js>
+import Loadable from 'react-loadable'
+
+const Loading = () => null
+const defaultLoaderProps = {
+  loading: Loading,
+  delay: 0
+}
+
+export const createLoadable = (loader, propsOverrides = {}) => {
+  const props = { ...defaultLoaderProps, ...propsOverrides }
+  props.loader = loader
+  return Loadable(props)
+}
+</code>
+
+<code javascript src/index.js>
+/* global document, window */
+import React from 'react'
+import { render } from 'react-dom'
+
+import store from './store'
+import history from './store/configureHistory'
+import Root from './containers/Root'
+
+render(
+  <Root
+    store={store}
+    history={history}
+  />,
+  document.getElementById('root')
+)
+
+if (module.hot) {
+  module.hot.accept()
+}
+</code>
+
+<code html index.ejs>
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Alrike. No more no less.</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <meta charset="utf-8">
+    <noscript id="jss-insertion-point"></noscript>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+</code>
+
+===== (6) Root Container =====
+
+<code javascript src/containers/Root.js>
+import React, { Fragment } from 'react'
+import PropTypes from 'prop-types'
+import { Provider } from 'react-redux'
+
+import { ConnectedRouter } from 'connected-react-router'
+import { renderRoutes } from 'react-router-config'
+
+import { hot } from 'react-hot-loader'
+
+import routes from '../routes'
+
+const Root = ({ store, history }) => (
+  <Provider store={store}>
+    <Fragment>
+      <ConnectedRouter
+        history={history}
+      >
+        {renderRoutes(routes)}
+      </ConnectedRouter>
+    </Fragment>
+  </Provider>
+)
+
+
+Root.propTypes = {
+  store: PropTypes.object.isRequired,
+  history: PropTypes.object.isRequired
+}
+
+export default hot(module)(Root)
+</code>
+
+===== (7) Reducer index =====
+
+<code javascript src/reducers/index.js>
+import { combineReducers } from 'redux'
+import { connectRouter } from 'connected-react-router'
+
+const appReducer = history => combineReducers({
+  router: connectRouter(history)
+})
+
+// Pattern inspired by http://stackoverflow.com/questions/35622588/how-to-reset-the-state-of-a-redux-store
+const rootReducer = history => (state, action) => {
+  let newState = state
+
+  return appReducer(history)(newState, action)
+}
+
+export default rootReducer
+</code>
+
+===== (8) Saga index =====
+
+<code javascript src/sagas/index.js>
+import { all } from 'redux-saga/effects'
+
+export default function* rootSaga() {
+  yield all([])
+}
+</code>
+
+===== (9) Redux store =====
+
+<code javascript src/store/index.js>
+import configureStore from './configureStore'
+
+export default configureStore()
+</code>
+
+<code javascript src/store/configureStore.js>
+/* eslint-disable */
+module.exports = require('./configureStore.' + process.env.NODE_ENV)
+</code>
+
+<code javascript src/store/configureStore.development.js>
+/* global window */
+import { compose, createStore, applyMiddleware } from 'redux'
+import createSagaMiddleware from 'redux-saga'
+
+import rootReducer from 'reducers'
+import rootSaga from 'sagas'
+import { routerMiddleware } from 'connected-react-router'
+
+import history from './configureHistory'
+
+const sagaMiddleware = createSagaMiddleware()
+
+
+export default function configureStore(initialState = {}) {
+  const devTools = window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__({})
+
+  const middlewares = applyMiddleware(
+    sagaMiddleware,
+    routerMiddleware(history)
+  )
+
+  let enhancer = compose(middlewares)
+
+  if (devTools) {
+    enhancer = compose(middlewares, devTools)
+  }
+
+  const store = createStore(
+    rootReducer(history),
+    initialState,
+    enhancer
+  )
+
+  /* eslint-disable */
+  let sagaTask = sagaMiddleware.run(function* () {
+    yield rootSaga()
+  })
+  /* eslint-enable */
+
+  if (module.hot) {
+    // Enable Webpack hot module replacement for reducers
+    module.hot.accept('../reducers', () => {
+      /* eslint-disable */
+      const nextRootReducer = require('../reducers').default
+      store.replaceReducer(nextRootReducer(history))
+      /* eslint-enable */
+    })
+
+    module.hot.accept('../sagas', () => {
+      /* eslint-disable */
+      const getNewSagas = require('../sagas').default
+      sagaTask.cancel()
+      sagaTask.toPromise().then(() => {
+        sagaTask = sagaMiddleware.run(function* replacedSaga(action) {
+          yield getNewSagas()
+        })
+      })
+      /* eslint-enable */
+    })
+  }
+
+  return store
+}
+</code>
+
+<code javascript src/store/configureStore.production.js>
+import { compose, createStore, applyMiddleware } from 'redux'
+import createSagaMiddleware from 'redux-saga'
+import { routerMiddleware } from 'connected-react-router'
+
+import rootReducer from 'reducers/index'
+import rootSaga from 'sagas'
+import history from './configureHistory'
+
+const sagaMiddleware = createSagaMiddleware({})
+
+export default function configureStore(initialState = {}) {
+  const enhancer = compose(
+    applyMiddleware(
+      sagaMiddleware,
+      routerMiddleware(history)
+    )
+  )
+
+  const store = createStore(
+    rootReducer(history),
+    initialState,
+    enhancer
+  )
+
+  sagaMiddleware.run(rootSaga)
+
+  return store
+}
+</code>
+
+<code javascript src/store/configureHistory.js>
+import { createHashHistory } from 'history'
+
+export default createHashHistory()
+</code>
+
+{{tag>:entwicklung:exzellenz}}

@@ -1,6 +1,6 @@
 docker_registry = honigwasser
 name = webapp
-tag = 8.12.0
+tag = 0.0.1
 
 .PHONY: build
 

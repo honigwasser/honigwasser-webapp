@@ -1,0 +1,7 @@
+app: &app_base
+  build: .
+  command: sleep 100000000000 # hack to keep container running in the background
+  ports:
+    - 9123:9123
+  volumes:
+    - .:/app
